@@ -60,7 +60,7 @@ def schedule_jobs():
     scheduler = BackgroundScheduler()
     
     # Scheduling the automatic tip every 8 hours (you can change this interval)
-    scheduler.add_job(send_automatic_tip, IntervalTrigger(hours=8))
+    scheduler.add_job(send_automatic_tip, IntervalTrigger(hours=8), next_run_time='2025-05-13 16:58:00')
     
     # Start the scheduler
     scheduler.start()
