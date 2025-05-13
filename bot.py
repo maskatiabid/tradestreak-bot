@@ -1,88 +1,52 @@
+import telebot
+import json
 import os
-import openai
-import logging
-from telegram import Bot, Update
-from telegram.ext import Application, CommandHandler, ContextTypes
-from apscheduler.schedulers.background import BackgroundScheduler
-from apscheduler.triggers.interval import IntervalTrigger
-from dotenv import load_dotenv
 
-# Load environment variables from .env file
-load_dotenv()
+BOT_TOKEN = "YOUR_TELEGRAM_BOT_TOKEN"  # replace this
+bot = telebot.TeleBot(BOT_TOKEN)
 
-# Retrieve sensitive information from environment variables
-openai.api_key = os.getenv("OPENAI_API_KEY")
-telegram_bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
-channel_id = os.getenv("CHANNEL_ID")
+CHANNEL_LINK = "https://t.me/TradeStreakChannel"
+ADMIN_ID = 123456789  # replace this with your Telegram ID
 
-# Initialize Telegram Bot
-bot = Bot(token=telegram_bot_token)
+approve_file = "utils/approve_list.json"
 
-# Setup logging to help identify errors
-logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-                    level=logging.INFO)
-logger = logging.getLogger(__name__)
+# Ensure approve_list.json exists
+if not os.path.exists(approve_file):
+    with open(approve_file, "w") as f:
+        json.dump([], f)
 
-# Function to handle the /start command
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("Welcome! Type /get_tip to get a stock tip.")
+@bot.message_handler(commands=['start'])
+def send_welcome(message):
+    bot.send_message(message.chat.id, "👋 Welcome to TradeStreak Signals!\n\nWe send 3 expert tips per day on stocks & crypto.")
+    bot.send_message(message.chat.id, "📅 Subscription: ₹499/month\n\n✅ To join, send payment via UPI below:")
+    bot.send_photo(message.chat.id, open("Abid QR Code.jpg", "rb"))
+    bot.send_message(message.chat.id, "📨 After payment, reply here with a screenshot or type 'Paid'. You'll be verified manually.")
 
-# Function to get a stock tip using OpenAI
-async def get_tip(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    try:
-        # Request stock tip from OpenAI (this is an example, you can modify the prompt as needed)
-        response = openai.Completion.create(
-            model="text-davinci-003",
-            prompt="Give me a short stock market tip.",
-            temperature=0.7,
-            max_tokens=60
-        )
-        tip = response.choices[0].text.strip()
-        await update.message.reply_text(f"Stock Tip: {tip}")
-        
-        # Optionally, send the tip to your Telegram channel as well
-        bot.send_message(chat_id=channel_id, text=f"Stock Tip: {tip}")
-    except Exception as e:
-        await update.message.reply_text(f"Error: {str(e)}")
+@bot.message_handler(func=lambda message: True)
+def handle_messages(message):
+    with open(approve_file, "r") as file:
+        approved = json.load(file)
 
-# Function to send tip automatically
-async def send_automatic_tip():
-    try:
-        response = openai.Completion.create(
-            model="text-davinci-003",
-            prompt="Give me a short stock market tip.",
-            temperature=0.7,
-            max_tokens=60
-        )
-        tip = response.choices[0].text.strip()
-        bot.send_message(chat_id=channel_id, text=f"Stock Tip: {tip}")
-    except Exception as e:
-        logger.error(f"Error while sending automatic tip: {str(e)}")
+    if message.text.lower() in ["paid", "done", "payment done"]:
+        bot.send_message(message.chat.id, "🧾 Thank you! Your payment will be manually verified. You'll receive the channel link shortly.")
+        bot.send_message(ADMIN_ID, f"👤 {message.from_user.first_name} (@{message.from_user.username}) claims to have paid.\nApprove with:\n`/approve {message.chat.id}`", parse_mode="Markdown")
 
-# Setup the job scheduler
-def schedule_jobs():
-    scheduler = BackgroundScheduler()
-    
-    # Scheduling the automatic tip every 8 hours (you can change this interval)
-    scheduler.add_job(send_automatic_tip, IntervalTrigger(hours=8), next_run_time='2025-05-13 17:15:00')
-    
-    # Start the scheduler
-    scheduler.start()
+    elif message.text.startswith("/approve"):
+        parts = message.text.split()
+        if len(parts) == 2:
+            try:
+                user_id = int(parts[1])
+                if user_id not in approved:
+                    approved.append(user_id)
+                    with open(approve_file, "w") as f:
+                        json.dump(approved, f)
+                    bot.send_message(user_id, f"✅ You're approved! Join the channel here: {CHANNEL_LINK}")
+                    bot.send_message(message.chat.id, "✅ Approved and sent channel link.")
+                else:
+                    bot.send_message(message.chat.id, "User already approved.")
+            except ValueError:
+                bot.send_message(message.chat.id, "Invalid ID.")
+        else:
+            bot.send_message(message.chat.id, "Usage: /approve USER_ID")
 
-# Setup the command handlers
-def main():
-    # Initialize the Application (telegram.ext.Application replaces Updater in v20)
-    application = Application.builder().token(telegram_bot_token).build()
-
-    # Add command handlers
-    application.add_handler(CommandHandler('start', start))
-    application.add_handler(CommandHandler('get_tip', get_tip))
-    
-    # Schedule the automatic tips
-    schedule_jobs()
-    
-    # Start the bot
-    application.run_polling()
-
-if __name__ == "__main__":
-    main()
+bot.polling()
