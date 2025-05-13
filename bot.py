@@ -1,42 +1,50 @@
 import os
 import openai
-import telegram
-from datetime import datetime
-import time
+from telegram import Bot
+from telegram.ext import Updater, CommandHandler
 
-# Load your API keys from environment
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
-CHANNEL_ID = os.getenv("CHANNEL_ID")
+# Load environment variables
+openai.api_key = os.getenv("OPENAI_API_KEY")
+telegram_bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
+channel_id = os.getenv("CHANNEL_ID")
 
-openai.api_key = OPENAI_API_KEY
-bot = telegram.Bot(token=TELEGRAM_BOT_TOKEN)
+# Initialize Telegram Bot
+bot = Bot(token=telegram_bot_token)
 
-def generate_signal(asset_type="crypto"):
-    prompt = f"Generate a trading signal for a trending {asset_type} with the following format:\n" \
-             "Asset:\nAction:\nEntry Price:\nTarget Price:\nStop Loss:\nBrief (1 line explanation):"
+# Function to handle the /start command
+def start(update, context):
+    update.message.reply_text("Welcome! Type /get_tip to get a stock tip.")
 
+# Function to get a stock tip using OpenAI
+def get_tip(update, context):
     try:
-        response = openai.ChatCompletion.create(
-            model="gpt-4",
-            messages=[{"role": "user", "content": prompt}]
+        # Request stock tip from OpenAI (this is an example, you can modify the prompt as needed)
+        response = openai.Completion.create(
+            model="text-davinci-003",
+            prompt="Give me a short stock market tip.",
+            temperature=0.7,
+            max_tokens=60
         )
-        return response['choices'][0]['message']['content']
+        tip = response.choices[0].text.strip()
+        update.message.reply_text(f"Stock Tip: {tip}")
+        
+        # Optionally, send the tip to your Telegram channel as well
+        bot.send_message(chat_id=channel_id, text=f"Stock Tip: {tip}")
     except Exception as e:
-        return f"Error generating {asset_type} signal: {str(e)}"
+        update.message.reply_text(f"Error: {str(e)}")
 
-def post_signal():
-    crypto_signal = generate_signal("crypto")
-    stock_signal = generate_signal("stock")
-
-    bot.send_message(chat_id=CHANNEL_ID, text=f"🚨 *Crypto Signal*\n{crypto_signal}", parse_mode="Markdown")
-    bot.send_message(chat_id=CHANNEL_ID, text=f"📈 *Stock Signal*\n{stock_signal}", parse_mode="Markdown")
+# Setup the command handlers
+def main():
+    updater = Updater(token=telegram_bot_token, use_context=True)
+    dispatcher = updater.dispatcher
+    
+    # Add command handlers
+    dispatcher.add_handler(CommandHandler('start', start))
+    dispatcher.add_handler(CommandHandler('get_tip', get_tip))
+    
+    # Start the bot
+    updater.start_polling()
+    updater.idle()
 
 if __name__ == "__main__":
-    while True:
-        now = datetime.now()
-        if now.hour in [9, 13, 17]:
-            post_signal()
-            time.sleep(3600)
-        else:
-            time.sleep(600)
+    main()
