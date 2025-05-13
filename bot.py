@@ -1,11 +1,10 @@
 import os
 import openai
 import logging
-from telegram import Bot
-from telegram.ext import Updater, CommandHandler, CallbackContext, Update, JobQueue
+from telegram import Bot, Update
+from telegram.ext import Application, CommandHandler, ContextTypes
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.interval import IntervalTrigger
-import time
 
 # Load environment variables
 openai.api_key = os.getenv("OPENAI_API_KEY")
@@ -21,11 +20,11 @@ logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s
 logger = logging.getLogger(__name__)
 
 # Function to handle the /start command
-def start(update: Update, context: CallbackContext):
-    update.message.reply_text("Welcome! Type /get_tip to get a stock tip.")
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("Welcome! Type /get_tip to get a stock tip.")
 
 # Function to get a stock tip using OpenAI
-def get_tip(update: Update, context: CallbackContext):
+async def get_tip(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         # Request stock tip from OpenAI (this is an example, you can modify the prompt as needed)
         response = openai.Completion.create(
@@ -35,15 +34,15 @@ def get_tip(update: Update, context: CallbackContext):
             max_tokens=60
         )
         tip = response.choices[0].text.strip()
-        update.message.reply_text(f"Stock Tip: {tip}")
+        await update.message.reply_text(f"Stock Tip: {tip}")
         
         # Optionally, send the tip to your Telegram channel as well
         bot.send_message(chat_id=channel_id, text=f"Stock Tip: {tip}")
     except Exception as e:
-        update.message.reply_text(f"Error: {str(e)}")
+        await update.message.reply_text(f"Error: {str(e)}")
 
 # Function to send tip automatically
-def send_automatic_tip(context: CallbackContext):
+async def send_automatic_tip():
     try:
         response = openai.Completion.create(
             model="text-davinci-003",
@@ -57,31 +56,29 @@ def send_automatic_tip(context: CallbackContext):
         logger.error(f"Error while sending automatic tip: {str(e)}")
 
 # Setup the job scheduler
-def schedule_jobs(updater: Updater):
-    job_queue = updater.job_queue
+def schedule_jobs():
     scheduler = BackgroundScheduler()
     
     # Scheduling the automatic tip every 8 hours (you can change this interval)
-    scheduler.add_job(send_automatic_tip, IntervalTrigger(hours=8), args=[updater])
+    scheduler.add_job(send_automatic_tip, IntervalTrigger(hours=8))
     
     # Start the scheduler
     scheduler.start()
 
 # Setup the command handlers
 def main():
-    updater = Updater(token=telegram_bot_token, use_context=True)
-    dispatcher = updater.dispatcher
-    
+    # Initialize the Application (telegram.ext.Application replaces Updater in v20)
+    application = Application.builder().token(telegram_bot_token).build()
+
     # Add command handlers
-    dispatcher.add_handler(CommandHandler('start', start))
-    dispatcher.add_handler(CommandHandler('get_tip', get_tip))
+    application.add_handler(CommandHandler('start', start))
+    application.add_handler(CommandHandler('get_tip', get_tip))
     
     # Schedule the automatic tips
-    schedule_jobs(updater)
+    schedule_jobs()
     
     # Start the bot
-    updater.start_polling()
-    updater.idle()
+    application.run_polling()
 
 if __name__ == "__main__":
     main()
