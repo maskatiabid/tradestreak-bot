@@ -8,7 +8,7 @@ from apscheduler.triggers.interval import IntervalTrigger
 
 # Load environment variables
 openai.api_key = os.getenv("OPENAI_API_KEY")
-telegram_bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
+telegram_bot_token = os.getenv("7991889461:AAF87ydRDov7Gc3P6OkrbeailL-mj3r_7PE")
 channel_id = os.getenv("CHANNEL_ID")
 
 # Initialize Telegram Bot
