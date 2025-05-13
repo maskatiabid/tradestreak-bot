@@ -5,10 +5,14 @@ from telegram import Bot, Update
 from telegram.ext import Application, CommandHandler, ContextTypes
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.interval import IntervalTrigger
+from dotenv import load_dotenv
 
-# Load environment variables
+# Load environment variables from .env file
+load_dotenv()
+
+# Retrieve sensitive information from environment variables
 openai.api_key = os.getenv("OPENAI_API_KEY")
-telegram_bot_token = os.getenv("7991889461:AAF87ydRDov7Gc3P6OkrbeailL-mj3r_7PE")
+telegram_bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
 channel_id = os.getenv("CHANNEL_ID")
 
 # Initialize Telegram Bot
